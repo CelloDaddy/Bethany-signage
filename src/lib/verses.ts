@@ -12,8 +12,7 @@ export const ESV_VERSES: Record<string, string> = {
   "Galatians 5:22-23":
     "But the fruit of the Spirit is love, joy, peace, patience, kindness, goodness, faithfulness, gentleness, self-control; against such things there is no law.",
   "Romans 8:15-16":
-    "For you did not receive the spirit of slavery to fall back into fear, but you have received the Spirit of adoption as sons, by whom we cry, "Abba! Father!" The Spirit himself bears witness with our spirit that we are children of God.",
-  "Romans 5:1":
+"For you did not receive the spirit of slavery to fall back into fear, but you have received the Spirit of adoption as sons, by whom we cry, \u2018Abba! Father!\u2019 The Spirit himself bears witness with our spirit that we are children of God.",  "Romans 5:1":
     "Therefore, since we have been justified by faith, we have peace with God through our Lord Jesus Christ.",
   "Ephesians 1:7":
     "In him we have redemption through his blood, the forgiveness of our trespasses, according to the riches of his grace.",
