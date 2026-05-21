@@ -19,11 +19,6 @@ type Group = {
 };
 
 const DAYS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
-const PRIORITY_LABELS: Record<string, string> = {
-  high: "High — every other slot",
-  medium: "Medium — every 3–4 slots",
-  low: "Low — once per loop",
-};
 
 function apiHeaders() {
   return { "x-admin-password": ADMIN_PW, "Content-Type": "application/json" };
@@ -38,7 +33,10 @@ export default function ManagePage() {
   const [showUpload, setShowUpload] = useState(false);
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   async function load() {
     setLoading(true);
@@ -66,26 +64,34 @@ export default function ManagePage() {
 
   async function uploadFile(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!selectedFile) { alert("Please select a file first."); return; }
+    setUploading(true);
     const fd = new FormData(e.currentTarget);
-    const file = fd.get("file") as File;
-    if (!file?.name) return;
     const meta = {
-      name: fd.get("name") as string || file.name,
-      type: file.type.startsWith("video") ? "video" : "image",
+      name: (fd.get("name") as string) || selectedFile.name,
+      type: selectedFile.type.startsWith("video") ? "video" : "image",
       durationSeconds: parseInt(fd.get("duration") as string) || 10,
       priority: fd.get("priority") as string || "medium",
-      startDate: fd.get("startDate") as string || null,
-      endDate: fd.get("endDate") as string || null,
+      startDate: (fd.get("startDate") as string) || null,
+      endDate: (fd.get("endDate") as string) || null,
       daysOfWeek: DAYS.map((_,i) => fd.get(`day_${i}`) ? i : null).filter(x=>x!==null).join(",") || "0,1,2,3,4,5,6",
       screens: screens.map(s => fd.get(`screen_${s.id}`) ? s.id : null).filter(Boolean),
-      groupId: fd.get("groupId") as string || null,
+      groupId: (fd.get("groupId") as string) || null,
     };
     const uploadFd = new FormData();
-    uploadFd.append("file", file);
+    uploadFd.append("file", selectedFile);
     uploadFd.append("meta", JSON.stringify(meta));
-    await fetch("/api/media", { method: "POST", headers: { "x-admin-password": ADMIN_PW }, body: uploadFd });
-    setShowUpload(false);
-    load();
+    try {
+      const res = await fetch("/api/media", { method: "POST", headers: { "x-admin-password": ADMIN_PW }, body: uploadFd });
+      if (!res.ok) throw new Error(await res.text());
+      setShowUpload(false);
+      setSelectedFile(null);
+      load();
+    } catch (err) {
+      alert("Upload failed: " + String(err));
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function deleteMedia(id: string) {
@@ -100,8 +106,8 @@ export default function ManagePage() {
     const body = {
       name: fd.get("name") as string,
       priority: fd.get("priority") as string || "medium",
-      startDate: fd.get("startDate") as string || null,
-      endDate: fd.get("endDate") as string || null,
+      startDate: (fd.get("startDate") as string) || null,
+      endDate: (fd.get("endDate") as string) || null,
       daysOfWeek: DAYS.map((_,i) => fd.get(`day_${i}`) ? i : null).filter(x=>x!==null).join(",") || "0,1,2,3,4,5,6",
       screens: screens.map(s => fd.get(`screen_${s.id}`) ? s.id : null).filter(Boolean),
     };
@@ -196,7 +202,7 @@ export default function ManagePage() {
                     <span className={styles.groupMeta}>{g.members?.length||0} slides · {(g.members||[]).reduce((a,m)=>a+(m.duration_seconds||10),0)}s total</span>
                   </div>
                   <div className={styles.groupBody}>
-                    {(g.members||[]).map((m,i)=>(
+                    {(g.members||[]).map((m)=>(
                       <div key={m.id} className={styles.groupRow}>
                         <span className={styles.dragHandle}>⋮⋮</span>
                         <div className={styles.slideThumbSm}>{m.type==="video"?"▶":"🖼"}</div>
@@ -224,7 +230,10 @@ export default function ManagePage() {
                     {individualMedia.map(m=>(
                       <div key={m.id} className={styles.mediaCard}>
                         <div className={`${styles.mediaThumb} ${m.type==="video"?styles.vidThumb:styles.imgThumb}`}>
-                          {m.blob_url && m.type==="image" && <img src={m.blob_url} alt={m.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>}
+                          {m.blob_url && m.type==="image" && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={m.blob_url} alt={m.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                          )}
                           {m.type==="video" && <span style={{fontSize:"28px"}}>▶</span>}
                           <span className={styles.typeBadge}>{m.type.toUpperCase()}</span>
                           <span className={styles.durBadge}>{m.duration_seconds}s</span>
@@ -288,7 +297,6 @@ export default function ManagePage() {
           {/* DYNAMIC */}
           {!loading && page==="dynamic" && (
             <div>
-              {/* Calendar */}
               <div className={styles.dynamicCard}>
                 <div className={styles.dynamicHeader}>
                   <div className={`${styles.dynamicIcon} ${styles.calIcon}`}>📅</div>
@@ -330,7 +338,6 @@ export default function ManagePage() {
                 </div>
               </div>
 
-              {/* Verses */}
               <div className={styles.dynamicCard}>
                 <div className={styles.dynamicHeader}>
                   <div className={`${styles.dynamicIcon} ${styles.bibleIcon}`}>📖</div>
@@ -399,21 +406,34 @@ export default function ManagePage() {
 
       {/* UPLOAD MODAL */}
       {showUpload && (
-        <div className={styles.modalOverlay} onClick={e=>{ if(e.target===e.currentTarget) setShowUpload(false); }}>
+        <div className={styles.modalOverlay} onClick={e=>{ if(e.target===e.currentTarget){ setShowUpload(false); setSelectedFile(null); } }}>
           <div className={styles.modal}>
             <div className={styles.modalHead}>
               <span>Add Media Item</span>
-              <button className={styles.modalClose} onClick={()=>setShowUpload(false)}>✕</button>
+              <button className={styles.modalClose} onClick={()=>{ setShowUpload(false); setSelectedFile(null); }}>✕</button>
             </div>
-            <form className={styles.modalBody} onSubmit={uploadFile}>
-              <div className={styles.fileDropZone} onClick={()=>fileRef.current?.click()}>
-                <input ref={fileRef} type="file" name="file" accept="image/*,video/mp4" style={{display:"none"}} required/>
-                <div>📁 Click to choose file</div>
-                <div style={{fontSize:"11px",color:"#8a92a8",marginTop:"4px"}}>JPG, PNG, GIF, MP4 · Max 500 MB</div>
+            <form ref={formRef} className={styles.modalBody} onSubmit={uploadFile}>
+
+              {/* File input — visible but overlaid by styled label */}
+              <div className={styles.fileDropZone}>
+                <label style={{display:"flex",flexDirection:"column",alignItems:"center",cursor:"pointer",gap:"6px"}}>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*,video/mp4"
+                    style={{width:"100%",cursor:"pointer"}}
+                    onChange={e => setSelectedFile(e.target.files?.[0] || null)}
+                  />
+                  {selectedFile
+                    ? <span style={{fontSize:"13px",color:"#003149",fontWeight:500}}>✓ {selectedFile.name}</span>
+                    : <span style={{fontSize:"11px",color:"#8a92a8",marginTop:"2px"}}>JPG, PNG, GIF, MP4 · Max 500 MB</span>
+                  }
+                </label>
               </div>
+
               <div className={styles.modalField}>
                 <label>Display name</label>
-                <input type="text" name="name" placeholder="e.g. Easter Sunday Announcement"/>
+                <input type="text" name="name" placeholder={selectedFile?.name || "e.g. Easter Sunday Announcement"}/>
               </div>
               <div className={styles.fieldGrid}>
                 <div className={styles.modalField}>
@@ -422,9 +442,9 @@ export default function ManagePage() {
                 </div>
                 <div className={styles.modalField}>
                   <label>Priority</label>
-                  <select name="priority">
+                  <select name="priority" defaultValue="medium">
                     <option value="high">High — every other slot</option>
-                    <option value="medium" selected>Medium — every 3–4 slots</option>
+                    <option value="medium">Medium — every 3–4 slots</option>
                     <option value="low">Low — once per loop</option>
                   </select>
                 </div>
@@ -455,14 +475,16 @@ export default function ManagePage() {
               </div>
               <div className={styles.modalField}>
                 <label>Add to group (optional)</label>
-                <select name="groupId">
+                <select name="groupId" defaultValue="">
                   <option value="">No group</option>
                   {groups.map(g=><option key={g.id} value={g.id}>{g.name}</option>)}
                 </select>
               </div>
               <div className={styles.modalFooter}>
-                <button type="button" className={styles.btnGhost} onClick={()=>setShowUpload(false)}>Cancel</button>
-                <button type="submit" className={styles.btnPrimary}>Save Item</button>
+                <button type="button" className={styles.btnGhost} onClick={()=>{ setShowUpload(false); setSelectedFile(null); }}>Cancel</button>
+                <button type="submit" className={styles.btnPrimary} disabled={uploading}>
+                  {uploading ? "Uploading…" : "Save Item"}
+                </button>
               </div>
             </form>
           </div>
@@ -496,9 +518,9 @@ export default function ManagePage() {
               <div className={styles.fieldGrid}>
                 <div className={styles.modalField}>
                   <label>Priority</label>
-                  <select name="priority">
+                  <select name="priority" defaultValue="medium">
                     <option value="high">High</option>
-                    <option value="medium" selected>Medium</option>
+                    <option value="medium">Medium</option>
                     <option value="low">Low</option>
                   </select>
                 </div>
