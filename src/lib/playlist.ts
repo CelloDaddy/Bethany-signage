@@ -125,14 +125,14 @@ export async function buildPlaylist(screenId: string): Promise<Slide[]> {
   for (const group of groupRows) {
     if (!isScheduledToday(group.start_date, group.end_date, group.days_of_week)) continue;
     const members = groupMediaRows
-      .filter((m: { group_id: string }) => m.group_id === group.id)
-      .map((m: { id: string; type: string; name: string; duration_seconds: number; blob_url: string; mime_type: string }) => ({
-        id: m.id,
+      .filter((m: any) => m.group_id === group.id)
+      .map((m: any) => ({
+        id: m.id as string,
         type: m.type as SlideType,
-        name: m.name,
-        durationSeconds: m.duration_seconds,
-        blobUrl: m.blob_url,
-        mimeType: m.mime_type,
+        name: m.name as string,
+        durationSeconds: m.duration_seconds as number,
+        blobUrl: m.blob_url as string,
+        mimeType: m.mime_type as string,
       }));
     if (members.length > 0) {
       items.push({ slide: members, weight: priorityWeight(group.priority) });
