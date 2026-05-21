@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   if (file) {
     mimeType = file.type;
     fileSize = file.size;
-const blob = await put(`media/${id}/${file.name}`, file, { access: "private" });
+const blob = await put(`media/${id}/${file.name}`, file, { access: "public" });
     blobUrl = blob.url;
   }
 
